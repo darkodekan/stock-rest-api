@@ -4,6 +4,13 @@ from flask_mysqldb import MySQL
 import random, configparser, logging
 
 
+class Product():
+	def __init__(self, product_id, server_id):
+		self.product_id = product_id
+		self.server_id = server_id
+	def __repr__(self):
+		return { "product_id" : self.product_id, "server_id" : self.server_id}
+
 #logging and logging configuration
 LOG_FORMAT = "%(levelname)s %(asctime)s - %(message)s"
 logging.basicConfig(filename = "LOGGING.log", level = logging.DEBUG, format = LOG_FORMAT)
@@ -15,28 +22,24 @@ config = configparser.ConfigParser()
 config.read("SETTINGS.ini")
 db_config = config["database"]
 admin_config = config["admin"]
-num_servers = config["general"]["num_servers"]
+num_servers = len(config["general"]["server_ids"].split(","))
 #add number of servers config file
 app = Flask(__name__)
 
 #setup mysql database credentials
-app.config['MYSQL_USER'] = db_config["mysqluser"]
-app.config['MYSQL_PASSWORD'] = db_config["mysqlpassword"]
-app.config['MYSQL_HOST'] = db_config["mysqlhost"]
-app.config['MYSQL_DB'] = db_config["mysqldatabase"]
+app.config['MYSQL_USER'] = db_config["mysql_user"]
+app.config['MYSQL_PASSWORD'] = db_config["mysql_password"]
+app.config['MYSQL_HOST'] = db_config["mysql_host"]
+app.config['MYSQL_DB'] = db_config["mysql_database"]
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 mysql = MySQL(app)
 api = Api(app)
 
-UPDATE_SERVER_ID[1]=0
-UPDATE_SERVER_ID[2]=0
-UPDATE_SERVER_ID[3]=0
+#UPDATE_SERVER_ID[1]=0
+#UPDATE_SERVER_ID[2]=0
+#UPDATE_SERVER_ID[3]=0
 
-class Product():
-	def __init__(self, product_id, server_id):
-		self.product_id = product_id
-		self.server_id = server_id
 
 #find location of link
 def get_url_server_id(product_url):
@@ -56,21 +59,32 @@ def get_url_server_id(product_url):
 	except Exception as e:
 		return None
 #display contents of database
-def get_all_products():
+def get_all_json_products():
 	try:
+		print("HEEY")
 		products = list()
 		conn = mysql.connect
 		cursor = conn.cursor()
 		cursor.execute("SELECT * FROM product");
 		product_rows = cursor.fetchall()
+		print(product_rows)
 		cursor.close()
 		conn.close()
-		for product in product_rows:
-			products.append(Product(row["url"], row["server_id"]))
+		for product_row in product_rows:
+			print(product_row)
+			products.append(Product(product_row["product_id"], product_row["server_id"]).__repr__())
 		return products
 	except Exception as e:
+		print(e)
+def get_json_product(product_id):
+	try:
+		conn = mysql.connect
+		cursor = conn.cursor()
+		cursor.execute("SELECT * FROM product WHERE product_id=%s", (product_id,));
+		product_row = cursor.fetchone()
+		return Product(product_row["product_id"], product_row["server_id"]).__repr__()
+	except:
 		return None
-
 def get_server_products(server_id):
 	try:
 		products = list()
@@ -79,20 +93,20 @@ def get_server_products(server_id):
 		cursor.execute("SELECT FROM product WHERE server_id=%s", (server_id,))
 		products_rows = cursor.fetchall()
 		for row in products_row:
-			products.append(Product(row["url"], row["server_id"]))	
+			products.append(Product(row["product_id"], row["server_id"]))	
 		cursor.close()
 		conn.close()
 		return products
 	except Exception as e:
 		return None
 	
-def is_product_exists(url):
+def is_product_database(product_id):
 	try:
 		products = list()
 		conn = mysql.connect
 		cursor = conn.cursor()
-		cursor.execute("SELECT FROM product WHERE url=%s", (url,))
-
+		cursor.execute("SELECT FROM product WHERE product_id=%s", (product_id,))
+		
 	except Exception as e:
 		return None
 #add try and catch
@@ -100,8 +114,8 @@ def add_to_database(product):
 	try:
 		conn = mysql.connect
 		cursor = conn.cursor()
-		sql = "INSERT INTO product(url, server_id) VALUES(%s,%s)"
-		cursor.execute(sql, (product.url, product.server_id))
+		sql = "INSERT INTO product(product_id, server_id) VALUES(%s,%s)"
+		cursor.execute(sql, (product.product_id, product.server_id))
 		conn.commit()
 		cursor.close()
 		conn.close()
@@ -110,25 +124,25 @@ def add_to_database(product):
 		print(e)
 		return False
 
-def delete_from_database(product):  
+def delete_from_database(product_id):  
 	try:
 		conn = mysql.connect
 		cursor = conn.cursor()
-		sql = "DELETE FROM product WHERE url=%s"
-		cursor.execute(sql, product.url)
+		sql = "DELETE FROM product WHERE product_id=%s"
+		cursor.execute(sql, (product_id,))
 		conn.commit()
 		cursor.close()
 		conn.close()
 		return True
-	except:
-		return False
+	except Exception as e:
+		print(e)
 
-def update_database(product1, product2):
+def update_database(product_id1, product_id2):
 	try:
 		conn = mysql.connect
 		cursor = conn.cursor()
-		sql = "UPDATE product SET url=%s WHERE url=%s"
-		cursor.execute(sql, product.url, product.url)
+		sql = "UPDATE product SET product_id=%s WHERE product_id=%s"
+		cursor.execute(sql, (product_id2, product_id1))
 		conn.commit()
 		cursor.close()
 		conn.close()
@@ -151,33 +165,16 @@ def login(login_info):
             return True
     return False
 
-def add(command):
-	exists = is_product_exists(command["url"])
-	if exists==True:
-		success = None
-		if command["server"]=="random":
-			 success = add_to_database(Product(command["url"], random.randint(1,3)))
-		else:
-			 success = add_to_database(Product(command["url"], num_server=command["server"]))
-		if success:
-			return {"success":"true"}
-		else:
-			return {"success":"false"}
-	elif exists == False:
-		return {"success":"exists"}
-	return {"success":"false"}
-def delete(command):
-	if exists == False:
-		success = delete_from_database(command["url"])
-		if success:
-			return {"success":"true"}
-		else:
-			return {"success":"false"}
-	elif exists == True:
-		return {"success":"exists"}
-	return {"success":"false"}
+def add(product):
+	add_to_database(product)
+def delete(product_id):
+	success = delete_from_database(product_id)
+	if success:
+		return {"success":"true"}
+	else:
+		return {"success":"false"}
 
-def get_url_list():
+def get_server_products(command):
 	product_url_list = list()
 	products = get_server_products(command["server_id"])
 	if products:
@@ -194,26 +191,26 @@ class Introduction(Resource):
         headers = {'Content-Type': 'text/html'}
         return make_response(render_template("index.html"),200,headers)
 
-class Products(Resource):
+class AllProducts(Resource):
 	def get(self):
-		return {"message":get_all_links()}
+		return {"products":get_all_json_products()}
 
 	def post(self):
-		command = request.get_json()
-		exists = is_product_exists(command["url"])
-		if command["action"] == "add":
-			add(command,exists)
-		elif command["action"] == "update":
-			update(command,exists)
-		elif command["action"] == "delete":
-			delete(command,exists)
-		elif command["action"] == "get_url_list":
-			get_url_list(command, exists)
-		elif command["action"] == "check_update":
-			return update_id[command["server_id"]]
-			
-class Product(Resource):
-	pass
+		json_object = request.get_json()
+		add_to_database(Product(json_object["product_id"],json_object["server_id"])) 
+
+#MAKE JSON OBJECT TO PYTHON OBJECT CONVERTER
+
+class OneProduct(Resource):
+	def get(self,product_id):
+		return get_json_product(product_id) 
+	def delete(self, product_id):
+		delete(product_id)
+	def put(self, product_id):
+		json_object = request.get_json()
+		print(json_object)
+		update_database(product_id, json_object["product_id"])
+
 class Login(Resource):
 	def post(self):
 		login_json = request.get_json()
@@ -221,12 +218,14 @@ class Login(Resource):
 			return {"success":True}
 		else:
 			return {"success":False}
+class ProductsServer(Resource):
+	pass
 
 api.add_resource(Introduction, "/")
-api.add_resource(Products, "/products")
-api.add_resource(Product, "/products/<string:product_id")
-api.add_resource(ServerRetrieval, "/products/server/<int:num>")
+api.add_resource(AllProducts, "/products")
+api.add_resource(OneProduct, "/products/<string:product_id>")
+api.add_resource(ProductsServer, "/products/server/<int:num>")
 api.add_resource(Login, "/login")
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)
