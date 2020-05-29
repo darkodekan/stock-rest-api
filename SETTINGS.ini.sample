@@ -1,0 +1,11 @@
+[database]	
+mysql_host = 
+mysql_user = 
+mysql_port = 
+mysql_password = 
+mysql_database = 
+
+[admin]
+username = 
+password = 
+
