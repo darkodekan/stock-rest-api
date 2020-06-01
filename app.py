@@ -141,9 +141,6 @@ def login(login_info):
             return True
     return False
 
-#should we make factory design?
-def get_server_update_id(id):
-	pass	
 	
 class Introduction(Resource):
     def get(self):
@@ -183,11 +180,7 @@ class ProductsServer(Resource):
 		if products:
 			return Response(products, status=200, mimetype='application/json')
 		else:
-			return Response("hheey", status=404, mimetype='application/json')
-class Update(Resource):
-	def get(self, server_id):
-		return {"update_id" : get_update_id(server_id)}
-	
+			return Response("Error 404", status=404, mimetype='application/json')
 		
 	
 
@@ -195,7 +188,6 @@ api.add_resource(Introduction, "/")
 api.add_resource(AllProducts, "/product")
 api.add_resource(OneProduct, "/product/product_id/<string:product_id>")
 api.add_resource(ProductsServer, "/product/server_id/<int:server_id>")
-api.add_resource(Update, "/update/server_id/<int:server_id>")
 api.add_resource(Login, "/login")
 
 if __name__ == "__main__":
